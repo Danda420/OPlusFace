@@ -22,17 +22,13 @@ public class FacePPImpl {
 
     public FacePPImpl(Context context) { 
         mContext = context;
-        // Initialize Handler on Main Looper for delayed tasks
         mHandler = new Handler(Looper.getMainLooper());
     }
 
     public void init() {
         synchronized (this) {
             if (mIsInit) return;
-            
-            // [CRITICAL FIX] Early Boot Latch
-            // Triggered at ~18:44:52. Forces SystemUI to see "1" when it eventually starts.
-            Log.i(TAG, "FacePPImpl: Boot Latch Triggered - Forcing Property=1");
+            Log.i(TAG, "FacePPImpl: Boot Latch Triggered");
             Util.setSystemProperty("persist.sys.oplus.isFaceEnrolled", "1");
 
             File dir = new File(DATA_PATH);
@@ -45,15 +41,10 @@ public class FacePPImpl {
                 Log.i(TAG, "FacePPImpl: Initialized successfully");
                 restoreFeature(); 
                 mIsInit = true;
-
-                // [CRITICAL FIX] Extended Delayed Reconciliation
-                // SystemUI AuthController registered sensors at 18:45:11 (19s later).
-                // We set delay to 30s (30000ms) to ensure we cover the 19s gap + safety buffer.
-                // Target release time: ~18:45:22
                 mHandler.postDelayed(() -> {
                     boolean hasFace = hasEnrolledFaces();
                     String val = hasFace ? "1" : "0";
-                    Log.i(TAG, "FacePPImpl: Boot Latch Released (30s). Reconciling Property -> " + val);
+                    Log.i(TAG, "FacePPImpl: Boot Latch Released");
                     Util.setSystemProperty("persist.sys.oplus.isFaceEnrolled", val);
                 }, 30000); 
             }

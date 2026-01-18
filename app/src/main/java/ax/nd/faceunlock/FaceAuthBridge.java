@@ -60,7 +60,6 @@ public class FaceAuthBridge {
             try {
                 sInstance = new FaceAuthBridge(context);
                 sInstance.mFacePP.init(); 
-                // Boot latch is now handled inside FacePPImpl.init()
             } catch (Throwable t) {
                 Log.e(TAG, "Failed to init FaceAuthBridge", t);
             }
@@ -344,10 +343,6 @@ public class FaceAuthBridge {
         } catch (Exception e) {}
     }
 
-    /**
-     * Updates persist.sys.oplus.isFaceEnrolled system property.
-     * 1 = Enrolled, 0 = Not Enrolled
-     */
     private void notifySystemUIonFaceChanged(boolean isEnrolled) {
         String val = isEnrolled ? "1" : "0";
         Util.setSystemProperty("persist.sys.oplus.isFaceEnrolled", val);
