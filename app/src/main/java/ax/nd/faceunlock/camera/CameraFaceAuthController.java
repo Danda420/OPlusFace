@@ -10,21 +10,29 @@ import android.os.Looper;
 import android.util.Log;
 
 import ax.nd.faceunlock.camera.listeners.CameraListener;
+import ax.nd.faceunlock.camera.listeners.ErrorCallbackListener;
+
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.List;
 
 public class CameraFaceAuthController {
     private static final String TAG = "CameraFaceAuthController";
     private Context mContext;
     private Handler mHandler;
-    private HandlerThread mFaceHandlerThread;
-    private Handler mFaceHandler;
+    private HandlerThread mAuthHandlerThread;
+    private Handler mAuthHandler;
     private ServiceCallback mCallback;
-    private boolean mIsAuth = false;
-    private int mFrameCount = 0;
+    private boolean mIsAuthenticating = false;
+
+    // We target 640x480 directly from hardware
+    private int mWidth = 640;
+    private int mHeight = 480;
 
     public interface ServiceCallback {
         int handlePreviewData(byte[] data, int width, int height);
-        void setDetectArea(android.hardware.Camera.Size size);
-        void onTimeout(boolean withFace);
+        void setDetectArea(Camera.Size size);
+        void onTimeout(boolean b);
         void onCameraError();
     }
 
@@ -34,91 +42,154 @@ public class CameraFaceAuthController {
         mHandler = new Handler(Looper.getMainLooper());
     }
 
-    public void start(final int cameraId, final SurfaceTexture dummySurface) {
-        mIsAuth = true;
-        mFrameCount = 0;
-        mFaceHandlerThread = new HandlerThread("face_auth_thread");
-        mFaceHandlerThread.start();
-        mFaceHandler = new Handler(mFaceHandlerThread.getLooper());
+    public void start(int cameraId, SurfaceTexture dummySurface) {
+        Log.d(TAG, "Starting Auth Camera...");
+        if (mIsAuthenticating) stop();
+        mIsAuthenticating = true;
+        
+        mAuthHandlerThread = new HandlerThread("face_auth_thread");
+        mAuthHandlerThread.start();
+        mAuthHandler = new Handler(mAuthHandlerThread.getLooper());
 
-        CameraService.openCamera(cameraId, (i, value) -> {
-            Log.e(TAG, "Open Failed: " + i);
-            if (mCallback != null) mCallback.onCameraError();
-        }, 
-        new CameraListener() {
+        CameraService.openCamera(cameraId, new ErrorCallbackListener() {
+            @Override
+            public void onEventCallback(int i, Object value) {
+                Log.e(TAG, "Auth Camera Open Error: " + i);
+                if (mCallback != null) mCallback.onCameraError();
+            }
+        }, new CameraListener() {
             @Override
             public void onComplete(Object value) {
-                 if (value instanceof Camera) {
-                     Camera camera = (Camera) value;
-                     try {
-                         if (dummySurface != null) camera.setPreviewTexture(dummySurface);
-                         
-                         CameraService.configureAndStartPreview(null, new CameraListener() {
-                             @Override
-                             public void onComplete(Object val) {
-                                 Log.d(TAG, "Auth Preview Started.");
-                                 setupBufferedCallback(camera);
-                             }
-                             @Override public void onError(Exception e) {
-                                 if(mCallback != null) mCallback.onCameraError();
-                             }
-                         });
-                     } catch (Exception e) {
-                         if (mCallback != null) mCallback.onCameraError();
-                     }
-                 }
+                if (value instanceof Camera) {
+                    Camera camera = (Camera) value;
+                    
+                    // 1. Optimize Camera Parameters (Hardware Scaling)
+                    setupCameraParameters(camera);
+
+                    // 2. Start Preview
+                    CameraService.startPreview(dummySurface, new CameraListener() {
+                        @Override
+                        public void onComplete(Object value) {
+                            Log.d(TAG, "Auth Preview Started (" + mWidth + "x" + mHeight + "). Attaching buffers...");
+                            setupBufferedCallback(camera);
+                        }
+                        @Override
+                        public void onError(Exception e) {
+                            Log.e(TAG, "Auth Preview Start Failed", e);
+                            if (mCallback != null) mCallback.onCameraError();
+                        }
+                    });
+                }
             }
             @Override
             public void onError(Exception e) {
-                 if (mCallback != null) mCallback.onCameraError();
+                Log.e(TAG, "Camera open exception", e);
+                if (mCallback != null) mCallback.onCameraError();
             }
         });
     }
 
-    private void setupBufferedCallback(Camera camera) {
+    private void setupCameraParameters(Camera camera) {
         try {
             Camera.Parameters params = camera.getParameters();
-            Camera.Size size = params.getPreviewSize();
-            int format = params.getPreviewFormat();
-            int bitsPerPixel = ImageFormat.getBitsPerPixel(format);
-            int bufferSize = (size.width * size.height * bitsPerPixel) / 8;
+            List<Camera.Size> supported = params.getSupportedPreviewSizes();
             
-            camera.addCallbackBuffer(new byte[bufferSize]);
-            camera.addCallbackBuffer(new byte[bufferSize]);
-            camera.addCallbackBuffer(new byte[bufferSize]);
+            // Find closest size to 640x480
+            Camera.Size bestSize = null;
+            int minDiff = Integer.MAX_VALUE;
+            
+            if (supported != null) {
+                for (Camera.Size size : supported) {
+                    // Prefer 640x480 explicitly
+                    if (size.width == 640 && size.height == 480) {
+                        bestSize = size;
+                        break;
+                    }
+                    // Otherwise find closest pixel count match
+                    int diff = Math.abs((size.width * size.height) - (640 * 480));
+                    if (diff < minDiff) {
+                        minDiff = diff;
+                        bestSize = size;
+                    }
+                }
+            }
 
-            CameraService.setPreviewCallback((i, val) -> {
-                 if (!mIsAuth) return;
-                 if (val instanceof byte[]) {
-                     final byte[] data = (byte[]) val;
-                     if (mFrameCount++ % 10 == 0) Log.d(TAG, "Frame #" + mFrameCount);
-
-                     if (mFaceHandler != null) {
-                         mFaceHandler.post(() -> {
-                             try {
-                                 if (mCallback != null) {
-                                     mCallback.handlePreviewData(data, size.width, size.height);
-                                 }
-                                 if (mIsAuth && camera != null) {
-                                     camera.addCallbackBuffer(data);
-                                 }
-                             } catch (Exception e) { }
-                         });
-                     }
-                 }
-            }, true, null); // TRUE = Buffered
+            if (bestSize != null) {
+                mWidth = bestSize.width;
+                mHeight = bestSize.height;
+                params.setPreviewSize(mWidth, mHeight);
+                Log.i(TAG, "Requested Camera Size: " + mWidth + "x" + mHeight);
+            }
+            
+            // Ensure standard format
+            params.setPreviewFormat(ImageFormat.NV21);
+            
+            // Apply parameters
+            camera.setParameters(params);
             
         } catch (Exception e) {
+            Log.e(TAG, "Failed to set camera parameters", e);
+        }
+    }
+
+    private void setupBufferedCallback(Camera camera) {
+        try {
+            // Re-read params to be sure of what the hardware accepted
+            Camera.Parameters params = camera.getParameters();
+            Camera.Size size = params.getPreviewSize();
+            mWidth = size.width;
+            mHeight = size.height;
+
+            int format = params.getPreviewFormat();
+            int bitsPerPixel = ImageFormat.getBitsPerPixel(format);
+            int bufferSize = (mWidth * mHeight * bitsPerPixel) / 8;
+
+            // 3 Buffers for smooth pipeline
+            camera.addCallbackBuffer(new byte[bufferSize]);
+            camera.addCallbackBuffer(new byte[bufferSize]);
+            camera.addCallbackBuffer(new byte[bufferSize]);
+
+            CameraService.setPreviewCallback((i, obj) -> {
+                if (!mIsAuthenticating || mCallback == null) return;
+                
+                if (obj instanceof byte[]) {
+                    final byte[] data = (byte[]) obj;
+                    
+                    if (mAuthHandler != null) {
+                        mAuthHandler.post(() -> {
+                            try {
+                                if (mCallback == null || !mIsAuthenticating) return;
+
+                                // ZERO PROCESSING: Pass raw hardware buffer to engine.
+                                // It is already 640x480 (or close to it).
+                                mCallback.handlePreviewData(data, mWidth, mHeight);
+                                
+                                // Return buffer to queue
+                                if (mIsAuthenticating && camera != null) {
+                                    camera.addCallbackBuffer(data);
+                                }
+                            } catch (Exception e) {
+                                Log.e(TAG, "Auth loop error", e);
+                            }
+                        });
+                    }
+                }
+            }, true, null);
+
+        } catch (Exception e) {
             Log.e(TAG, "Buffer Setup Failed", e);
+            if (mCallback != null) mCallback.onCameraError();
         }
     }
 
     public void stop() {
-        mIsAuth = false;
+        Log.d(TAG, "Stopping Auth Camera");
+        mIsAuthenticating = false;
+        mCallback = null;
         CameraService.closeCamera(null);
-        if (mFaceHandlerThread != null) {
-            mFaceHandlerThread.quitSafely();
-            mFaceHandlerThread = null;
+        if (mAuthHandlerThread != null) {
+            mAuthHandlerThread.quitSafely();
+            mAuthHandlerThread = null;
         }
     }
 }

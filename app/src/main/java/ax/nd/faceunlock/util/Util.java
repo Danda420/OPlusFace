@@ -64,4 +64,20 @@ public class Util {
 //        return !context.getResources().getBoolean(
 //                com.android.internal.R.bool.config_faceAuthOnlyOnSecurityView);
     }
+
+    /**
+     * Sets a system property via reflection.
+     * Required for: persist.sys.oplus.isFaceEnrolled
+     */
+    public static void setSystemProperty(String key, String value) {
+        try {
+            Class<?> c = Class.forName("android.os.SystemProperties");
+            java.lang.reflect.Method set = c.getMethod("set", String.class, String.class);
+            set.invoke(null, key, value);
+            Log.d(TAG, "Set SystemProp: " + key + " = " + value);
+        } catch (Exception e) {
+            Log.e(TAG, "Failed to set SystemProp: " + key, e);
+            e.printStackTrace();
+        }
+    }
 }
