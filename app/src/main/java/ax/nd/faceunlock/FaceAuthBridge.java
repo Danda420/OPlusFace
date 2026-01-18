@@ -61,7 +61,7 @@ public class FaceAuthBridge {
                 sInstance = new FaceAuthBridge(context);
                 sInstance.mFacePP.init(); 
             } catch (Throwable t) {
-                Log.e(TAG, "Failed to init FaceAuthBridge", t);
+                Log.e(TAG, "FaceAuthBridge initialization failed.", t);
             }
         }
     }
@@ -89,7 +89,7 @@ public class FaceAuthBridge {
 
     // --- ENROLLMENT ---
     public void startEnroll(final int userId, final Object receiverObject, final Surface previewSurface) {
-        Log.d(TAG, "startEnroll: User " + userId);
+        Log.d(TAG, "Enrollment requested for user: " + userId);
         mEnrollFinished = false;
         mEngineSuccess = false;
         mCurrentSteps = TOTAL_STEPS;
@@ -114,7 +114,7 @@ public class FaceAuthBridge {
                             mEngineSuccess = true;
                             int finalFaceId = (mOutId[0] <= 0) ? 1 : mOutId[0];
                             mPendingFaceId = finalFaceId;
-                            Log.i(TAG, "Enroll Success ID: " + finalFaceId);
+                            Log.i(TAG, "Enrollment successful. ID assigned: " + finalFaceId);
                             runProgressAnimation(receiverObject, userId);
                             return;
                         }
@@ -178,7 +178,7 @@ public class FaceAuthBridge {
 
     // --- AUTHENTICATION ---
     public void startAuthenticate(final int sensorId, final int userId, final Object receiverObject) {
-        Log.d(TAG, "startAuthenticate: Sensor " + sensorId + " User " + userId);
+        Log.d(TAG, "Authentication requested. Sensor: " + sensorId + ", User: " + userId);
         mHandler.post(() -> {
             try {
                 forceReleaseCamera(); 
@@ -190,7 +190,7 @@ public class FaceAuthBridge {
                         int[] scores = new int[20];
                         int res = mFacePP.compare(data, width, height, 0, true, true, scores);
                         if (res == 0) { 
-                            Log.i(TAG, "Auth Success! Unlocking...");
+                            Log.i(TAG, "Authentication successful. Triggering unlock.");
                             stopAuthenticateInternal(); 
                             notifyAuthenticated(receiverObject, sensorId, 1, userId); 
                         }
@@ -228,7 +228,7 @@ public class FaceAuthBridge {
     }
 
     public void remove(final int userId, final int faceId, final Object receiver) {
-        Log.d(TAG, "Removing Face ID: " + faceId);
+        Log.d(TAG, "Face removal requested. ID: " + faceId);
         mHandler.post(() -> {
             notifySystemUIonFaceChanged(false);
             mFacePP.deleteFeature(faceId); 
@@ -311,13 +311,13 @@ public class FaceAuthBridge {
                         f.setAccessible(true);
                         Object val = f.get(receiver);
                         if (val != null && val.getClass().getName().contains("IFaceServiceReceiver")) {
-                            Log.d(TAG, "Unwrapped receiver to: " + val.getClass().getName());
+                            Log.d(TAG, "Receiver unwrapped successfully: " + val.getClass().getName());
                             targetReceiver = val;
                             break;
                         }
                     }
                 } catch (Exception ex) {
-                    Log.w(TAG, "Failed to unwrap receiver", ex);
+                    Log.w(TAG, "Receiver unwrapping encountered an exception.", ex);
                 }
             }
             try {
@@ -328,11 +328,11 @@ public class FaceAuthBridge {
                     Method m = targetReceiver.getClass().getMethod("onAuthenticationSucceeded", faceClass, int.class, byte[].class);
                     m.invoke(targetReceiver, faceObj, userId, new byte[0]);
                 } catch (Exception ex2) {
-                    Log.e(TAG, "FATAL: Could not find method on receiver: " + targetReceiver.getClass().getName());
+                    Log.e(TAG, "Critical error: Unable to locate callback method on receiver: " + targetReceiver.getClass().getName());
                 }
             }
         } catch (Exception e) {
-            Log.e(TAG, "Notify Auth Failed", e);
+            Log.e(TAG, "Failed to invoke authentication callback.", e);
         }
     }
 
@@ -346,6 +346,6 @@ public class FaceAuthBridge {
     private void notifySystemUIonFaceChanged(boolean isEnrolled) {
         String val = isEnrolled ? "1" : "0";
         Util.setSystemProperty("persist.sys.oplus.isFaceEnrolled", val);
-        Log.i(TAG, "SystemUI Notified: persist.sys.oplus.isFaceEnrolled = " + val);
+        Log.i(TAG, "System UI state updated.");
     }
 }

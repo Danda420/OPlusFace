@@ -115,7 +115,7 @@ public class FacePPImpl {
                 }
             }
         } catch (Exception e) {
-            Log.e(TAG, "Failed to delete face", e);
+            Log.e(TAG, "Failed to delete face template", e);
         }
     }
 }
