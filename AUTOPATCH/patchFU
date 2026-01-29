@@ -39,50 +39,53 @@ patchservices() {
     echo "Patching ${jarname}..."
 
     local faceProviderclassfile=$(find tmp_jar/ -name 'FaceProvider.smali' -printf '%P\n')
+	local faceSvcclassfile=$(find tmp_jar/ -name 'FaceService.smali' -printf '%P\n')
+	local testHalclassfile=$(find tmp_jar/ -name "TestHal.smali" -printf '%P\n' | grep 'face' | grep 'aidl')
 
-    local initSensMethod=$(expressions_fix "$(grep ' initSensors(' tmp_jar/$faceProviderclassfile)")
-    local cancelAuthMethod=$(expressions_fix "$(grep ' cancelAuthentication(' tmp_jar/$faceProviderclassfile)")
-    local cancelEnrollMethod=$(expressions_fix "$(grep ' cancelEnrollment(' tmp_jar/$faceProviderclassfile)")
-    local getAuthIDMethod=$(expressions_fix "$(grep ' getAuthenticatorId(' tmp_jar/$faceProviderclassfile)")
-    local getEnrolledFMethod=$(expressions_fix "$(grep ' getEnrolledFaces(' tmp_jar/$faceProviderclassfile)")
-    local isHwDetectMethod=$(expressions_fix "$(grep ' isHardwareDetected(' tmp_jar/$faceProviderclassfile)")
-    local schedAuthMethod=$(expressions_fix "$(grep ' scheduleAuthenticate(' tmp_jar/$faceProviderclassfile)")
-    local schedEnrollMethod=$(expressions_fix "$(grep ' scheduleEnroll(' tmp_jar/$faceProviderclassfile)")
-    local schedGenClgMethod=$(expressions_fix "$(grep ' scheduleGenerateChallenge(' tmp_jar/$faceProviderclassfile)")
-    local schedRMMethod=$(expressions_fix "$(grep ' scheduleRemove(' tmp_jar/$faceProviderclassfile)")
-    local schedRevClgMethod=$(expressions_fix "$(grep ' scheduleRevokeChallenge(' tmp_jar/$faceProviderclassfile)")
+    local initSensMethod=$(expressions_fix "$(grep ' initSensors(Z' tmp_jar/$faceProviderclassfile)")
+    local cancelAuthMethod=$(expressions_fix "$(grep ' cancelAuthentication(IL' tmp_jar/$faceProviderclassfile)")
+    local cancelEnrollMethod=$(expressions_fix "$(grep ' cancelEnrollment(IL' tmp_jar/$faceProviderclassfile)")
+    local getAuthIDMethod=$(expressions_fix "$(grep ' getAuthenticatorId(II' tmp_jar/$faceProviderclassfile)")
+    local getEnrolledFMethod=$(expressions_fix "$(grep ' getEnrolledFaces(II' tmp_jar/$faceProviderclassfile)")
+    local hasEnrollMethod=$(expressions_fix "$(grep ' hasEnrollments(II' tmp_jar/$faceProviderclassfile)")
+    local getHalInstMethod=$(expressions_fix "$(grep ' getHalInstance()L' tmp_jar/$faceProviderclassfile)")
+    local schedAuthMethod=$(expressions_fix "$(grep ' scheduleAuthenticate(L' tmp_jar/$faceProviderclassfile | grep ';ZIZ)J')")
+    local schedEnrollMethod=$(expressions_fix "$(grep ' scheduleEnroll(IL' tmp_jar/$faceProviderclassfile)")
+    local schedGenClgMethod=$(expressions_fix "$(grep ' scheduleGenerateChallenge(II' tmp_jar/$faceProviderclassfile)")
+    local schedRMMethod=$(expressions_fix "$(grep ' scheduleRemove(IL' tmp_jar/$faceProviderclassfile)")
+    local isHwDetectMethod=$(expressions_fix "$(grep ' isHardwareDetected(I)Z' tmp_jar/$faceProviderclassfile)")
+    local getHalMethod=$(expressions_fix "$(grep ' getTestHalEnabled()Z' tmp_jar/$faceProviderclassfile)")
+    local hasHalMethod=$(expressions_fix "$(grep ' hasHalInstance()Z' tmp_jar/$faceProviderclassfile)")
+
+	local getDecInstMethod=$(expressions_fix "$(grep ' getDeclaredInstances()' tmp_jar/$faceSvcclassfile)")
+    local lambdaNew2Method=$(expressions_fix "$(grep ' lambda$new$2(Ljava' tmp_jar/$faceSvcclassfile)")
+
+	local getSensPropsMethod=$(expressions_fix "$(grep ' getSensorProps()' tmp_jar/$testHalclassfile)")
     
-    sed -n "/^${initSensMethod}/,/^\.end method/p" tmp_jar/$faceProviderclassfile > tmp_initSens
     sed -i "/^${initSensMethod}/,/^\.end method/d" tmp_jar/$faceProviderclassfile
+	sed -i "/^${cancelAuthMethod}/,/^\.end method/d" tmp_jar/$faceProviderclassfile
+	sed -i "/^${cancelEnrollMethod}/,/^\.end method/d" tmp_jar/$faceProviderclassfile
+	sed -i "/^${getAuthIDMethod}/,/^\.end method/d" tmp_jar/$faceProviderclassfile
+	sed -i "/^${getEnrolledFMethod}/,/^\.end method/d" tmp_jar/$faceProviderclassfile
+	sed -i "/^${hasEnrollMethod}/,/^\.end method/d" tmp_jar/$faceProviderclassfile
+	sed -i "/^${getHalInstMethod}/,/^\.end method/d" tmp_jar/$faceProviderclassfile
+	sed -i "/^${schedAuthMethod}/,/^\.end method/d" tmp_jar/$faceProviderclassfile
+	sed -i "/^${schedEnrollMethod}/,/^\.end method/d" tmp_jar/$faceProviderclassfile
+	sed -i "/^${schedGenClgMethod}/,/^\.end method/d" tmp_jar/$faceProviderclassfile
+	sed -i "/^${schedRMMethod}/,/^\.end method/d" tmp_jar/$faceProviderclassfile
+	sed -i "/^${isHwDetectMethod}/,/^\.end method/d" tmp_jar/$faceProviderclassfile
+	sed -i "/^${getHalMethod}/,/^\.end method/d" tmp_jar/$faceProviderclassfile
+	sed -i "/^${hasHalMethod}/,/^\.end method/d" tmp_jar/$faceProviderclassfile
 
-    sed -i "/^${cancelAuthMethod}/,/^\.end method/d" tmp_jar/$faceProviderclassfile
-    sed -i "/^${cancelEnrollMethod}/,/^\.end method/d" tmp_jar/$faceProviderclassfile
-    sed -i "/^${getAuthIDMethod}/,/^\.end method/d" tmp_jar/$faceProviderclassfile
-    sed -i "/^${getEnrolledFMethod}/,/^\.end method/d" tmp_jar/$faceProviderclassfile
-    sed -i "/^${isHwDetectMethod}/,/^\.end method/d" tmp_jar/$faceProviderclassfile
-    sed -i "/^${schedAuthMethod}/,/^\.end method/d" tmp_jar/$faceProviderclassfile
-    sed -i "/^${schedEnrollMethod}/,/^\.end method/d" tmp_jar/$faceProviderclassfile
-    sed -i "/^${schedGenClgMethod}/,/^\.end method/d" tmp_jar/$faceProviderclassfile
-    sed -i "/^${schedRMMethod}/,/^\.end method/d" tmp_jar/$faceProviderclassfile
-    sed -i "/^${schedRevClgMethod}/,/^\.end method/d" tmp_jar/$faceProviderclassfile
+	sed -i "/^${getDecInstMethod}/,/^\.end method/d" tmp_jar/$faceSvcclassfile
+	sed -i "/^${lambdaNew2Method}/,/^\.end method/d" tmp_jar/$faceSvcclassfile
 
-    local initSensLine=$(expr $(grep -r ".line" tmp_initSens | head -n 1 | awk '{print $2}') - 1)
-    faceProvider_initSensors $initSensLine
-    echo "$faceProvider_initSensors" | sed -i '5r /dev/stdin' tmp_initSens
+	sed -i "/^${getSensPropsMethod}/,/^\.end method/d" tmp_jar/$testHalclassfile
 
-    cat tmp_initSens >> tmp_jar/$faceProviderclassfile
-    rm -rf tmp_initSens
 
-    echo "$cancelAuth" >> tmp_jar/$faceProviderclassfile
-    echo "$cancelEnroll" >> tmp_jar/$faceProviderclassfile
-    echo "$getAuthID" >> tmp_jar/$faceProviderclassfile
-    echo "$getEnrolledF" >> tmp_jar/$faceProviderclassfile
-    echo "$isHwDetected" >> tmp_jar/$faceProviderclassfile
-    echo "$schedAuth" >> tmp_jar/$faceProviderclassfile
-    echo "$schedEnroll" >> tmp_jar/$faceProviderclassfile
-    echo "$schedGenClg" >> tmp_jar/$faceProviderclassfile
-    echo "$schedRM" >> tmp_jar/$faceProviderclassfile
-    echo "$schedRevClg" >> tmp_jar/$faceProviderclassfile
+    echo "$faceProviderChanges" >> tmp_jar/$faceProviderclassfile
+	echo "$faceServiceChanges" >> tmp_jar/$faceSvcclassfile
+	echo "$testHalChanges" >> tmp_jar/$testHalclassfile
 
     echo "Compiling ${jarname} classes.."
     if [[ $debug == false ]]; then
@@ -126,7 +129,7 @@ patchsysui() {
     local authCtrlclassfile=$(find tmp_apk/ -name 'AuthController.smali' -printf '%P\n')
     local faceEnrollStateMethod=$(expressions_fix "$(grep ' isFaceAuthEnrolled(' tmp_apk/$authCtrlclassfile)")
     sed -i "/^${faceEnrollStateMethod}/,/^\.end method/d" tmp_apk/$authCtrlclassfile
-    echo "$faceEnrollState" >> tmp_apk/$authCtrlclassfile
+    echo "$sysui_faceEnrollState" >> tmp_apk/$authCtrlclassfile
 
     echo "Compiling ${apkname}..."
     if [[ $debug == false ]]; then

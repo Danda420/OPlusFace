@@ -1,66 +1,125 @@
 #!/bin/bash
 
-faceProvider_initSensors() {
-    faceProvider_initSensors="
-    .line ${1}
+faceProviderChanges='
+.method private initSensors(Z[Landroid/hardware/biometrics/face/SensorProps;)V
+    .locals 9
+    .param p1, "resetLockoutRequiresChallenge"    # Z
+    .param p2, "props"    # [Landroid/hardware/biometrics/face/SensorProps;
+
+    .line 239
+    ### add start ###
     iget-object v0, p0, Lcom/android/server/biometrics/sensors/face/aidl/FaceProvider;->mContext:Landroid/content/Context;
+
     invoke-static {v0}, Lax/nd/faceunlock/FaceAuthBridge;->init(Landroid/content/Context;)V
-"
-}
 
-cancelAuth='
+    new-instance v0, Landroid/hardware/biometrics/face/SensorProps;
+
+    invoke-direct {v0}, Landroid/hardware/biometrics/face/SensorProps;-><init>()V
+
+    new-instance v1, Landroid/hardware/biometrics/common/CommonProps;
+
+    invoke-direct {v1}, Landroid/hardware/biometrics/common/CommonProps;-><init>()V
+
+    const/4 v2, 0x1
+
+    iput v2, v1, Landroid/hardware/biometrics/common/CommonProps;->sensorId:I
+
+    iput-object v1, v0, Landroid/hardware/biometrics/face/SensorProps;->commonProps:Landroid/hardware/biometrics/common/CommonProps;
+
+    const/4 v1, 0x0
+
+    invoke-direct {p0, v0, v1}, Lcom/android/server/biometrics/sensors/face/aidl/FaceProvider;->addAidlSensors(Landroid/hardware/biometrics/face/SensorProps;Z)V
+
+    invoke-static {}, Lcom/android/server/biometrics/sensors/face/aidl/FaceProvider;->getExtImpl()Lcom/android/server/biometrics/sensors/face/aidl/IFaceProviderExt;
+
+    move-result-object v2
+
+    move-object v3, p0
+
+    iget-object v4, p0, Lcom/android/server/biometrics/sensors/face/aidl/FaceProvider;->mContext:Landroid/content/Context;
+
+    const/4 v1, 0x1
+
+    new-array v5, v1, [Landroid/hardware/biometrics/face/SensorProps;
+
+    const/4 v1, 0x0
+
+    aput-object v0, v5, v1
+
+    ### add end ###
+
+    iget-object v6, p0, Lcom/android/server/biometrics/sensors/face/aidl/FaceProvider;->mHalInstanceName:Ljava/lang/String;
+
+    iget-object v7, p0, Lcom/android/server/biometrics/sensors/face/aidl/FaceProvider;->mHandler:Landroid/os/Handler;
+
+    invoke-interface/range {v2 .. v7}, Lcom/android/server/biometrics/sensors/face/aidl/IFaceProviderExt;->init(Lcom/android/server/biometrics/sensors/face/aidl/FaceProvider;Landroid/content/Context;[Landroid/hardware/biometrics/face/SensorProps;Ljava/lang/String;Landroid/os/Handler;)V
+
+    return-void
+.end method
+
 .method public cancelAuthentication(ILandroid/os/IBinder;J)V
-    .registers 8
-    .param p1, "sensorId"  # I
-    .param p2, "token"  # Landroid/os/IBinder;
-    .param p3, "requestId"  # J
+    .locals 7
+    .param p1, "sensorId"    # I
+    .param p2, "token"    # Landroid/os/IBinder;
+    .param p3, "requestId"    # J
+
     invoke-static {}, Lax/nd/faceunlock/FaceAuthBridge;->getInstance()Lax/nd/faceunlock/FaceAuthBridge;
+
     move-result-object v0
-    if-eqz v0, :cond_10
+
+    if-eqz v0, :cond_0
+
     invoke-virtual {v0}, Lax/nd/faceunlock/FaceAuthBridge;->stopAuthenticate()V
-    :cond_10
+
+    :cond_0
     return-void
 .end method
-'
 
-cancelEnroll='
 .method public cancelEnrollment(ILandroid/os/IBinder;J)V
-    .registers 8
-    .param p1, "sensorId"  # I
-    .param p2, "token"  # Landroid/os/IBinder;
-    .param p3, "requestId"  # J
+    .locals 7
+    .param p1, "sensorId"    # I
+    .param p2, "token"    # Landroid/os/IBinder;
+    .param p3, "requestId"    # J
+
     invoke-static {}, Lax/nd/faceunlock/FaceAuthBridge;->getInstance()Lax/nd/faceunlock/FaceAuthBridge;
+
     move-result-object v0
-    if-eqz v0, :cond_10
+
+    if-eqz v0, :cond_0
+
     invoke-virtual {v0}, Lax/nd/faceunlock/FaceAuthBridge;->stopEnroll()V
-    :cond_10
+
+    :cond_0
     return-void
 .end method
-'
 
-getAuthID='
 .method public getAuthenticatorId(II)J
-    .registers 7
-    .param p1, "sensorId"  # I
-    .param p2, "userId"  # I
-    
+    .locals 4
+    .param p1, "sensorId"    # I
+    .param p2, "userId"    # I
+
     invoke-static {}, Lax/nd/faceunlock/FaceAuthBridge;->getInstance()Lax/nd/faceunlock/FaceAuthBridge;
+
     move-result-object v0
-    if-eqz v0, :cond_12
+
+    if-eqz v0, :cond_0
+
     invoke-virtual {v0}, Lax/nd/faceunlock/FaceAuthBridge;->getAuthenticatorId()J
+
     move-result-wide v0
+
     return-wide v0
-    :cond_12
+
+    :cond_0
     const-wide/16 v0, 0x0
+
     return-wide v0
 .end method
-'
 
-getEnrolledF='
 .method public getEnrolledFaces(II)Ljava/util/List;
-    .registers 7
-    .param p1, "sensorId"  # I
-    .param p2, "userId"  # I
+    .locals 4
+    .param p1, "sensorId"    # I
+    .param p2, "userId"    # I
     .annotation system Ldalvik/annotation/Signature;
         value = {
             "(II)",
@@ -69,23 +128,216 @@ getEnrolledF='
             ">;"
         }
     .end annotation
+
     invoke-static {}, Lax/nd/faceunlock/FaceAuthBridge;->getInstance()Lax/nd/faceunlock/FaceAuthBridge;
+
     move-result-object v0
-    if-eqz v0, :cond_12
+
+    if-eqz v0, :cond_0
+
     invoke-virtual {v0, p1, p2}, Lax/nd/faceunlock/FaceAuthBridge;->getEnrolledFaces(II)Ljava/util/List;
+
     move-result-object v0
+
     return-object v0
-    :cond_12
+
+    :cond_0
     new-instance v0, Ljava/util/ArrayList;
+
     invoke-direct {v0}, Ljava/util/ArrayList;-><init>()V
+
     return-object v0
 .end method
-'
 
-isHwDetected='
+
+.method public hasEnrollments(II)Z
+    .locals 3
+    .param p1, "sensorId"    # I
+    .param p2, "userId"    # I
+
+    invoke-virtual {p0, p1, p2}, Lcom/android/server/biometrics/sensors/face/aidl/FaceProvider;->getEnrolledFaces(II)Ljava/util/List;
+
+    move-result-object v0
+
+    if-eqz v0, :cond_0
+
+    invoke-interface {v0}, Ljava/util/List;->isEmpty()Z
+
+    move-result v0
+
+    xor-int/lit8 v0, v0, 0x1
+
+    return v0
+
+    :cond_0
+    const/4 v0, 0x0
+
+    return v0
+.end method
+
+.method declared-synchronized getHalInstance()Landroid/hardware/biometrics/face/IFace;
+    .locals 8
+
+    monitor-enter p0
+
+    :try_start_0
+    new-instance v0, Lcom/android/server/biometrics/sensors/face/aidl/TestHal;
+
+    invoke-direct {v0}, Lcom/android/server/biometrics/sensors/face/aidl/TestHal;-><init>()V
+    :try_end_0
+    .catchall {:try_start_0 .. :try_end_0} :catchall_0
+
+    monitor-exit p0
+
+    return-object v0
+
+    :catchall_0
+    move-exception v0
+
+    monitor-exit p0
+
+    throw v0
+.end method
+
+.method public scheduleAuthenticate(Landroid/os/IBinder;JILcom/android/server/biometrics/sensors/ClientMonitorCallbackConverter;Landroid/hardware/face/FaceAuthenticateOptions;ZIZ)J
+    .locals 10
+    .param p1, "token"    # Landroid/os/IBinder;
+    .param p2, "operationId"    # J
+    .param p4, "cookie"    # I
+    .param p5, "callback"    # Lcom/android/server/biometrics/sensors/ClientMonitorCallbackConverter;
+    .param p6, "options"    # Landroid/hardware/face/FaceAuthenticateOptions;
+    .param p7, "restricted"    # Z
+    .param p8, "statsClient"    # I
+    .param p9, "allowBackgroundAuthentication"    # Z
+
+    invoke-static {}, Lax/nd/faceunlock/FaceAuthBridge;->getInstance()Lax/nd/faceunlock/FaceAuthBridge;
+
+    move-result-object v0
+
+    if-eqz v0, :cond_0
+
+    invoke-virtual/range {p6 .. p6}, Landroid/hardware/face/FaceAuthenticateOptions;->getUserId()I
+
+    move-result v1
+
+    invoke-virtual/range {p6 .. p6}, Landroid/hardware/face/FaceAuthenticateOptions;->getSensorId()I
+
+    move-result v2
+
+    invoke-virtual {v0, v2, v1, p5}, Lax/nd/faceunlock/FaceAuthBridge;->startAuthenticate(IILjava/lang/Object;)V
+
+    :cond_0
+    const-wide/16 v0, 0x1
+
+    return-wide v0
+.end method
+
+.method public scheduleEnroll(ILandroid/os/IBinder;[BILandroid/hardware/face/IFaceServiceReceiver;Ljava/lang/String;[ILandroid/view/Surface;ZLandroid/hardware/face/FaceEnrollOptions;)J
+    .locals 4
+    .param p1, "sensorId"    # I
+    .param p2, "token"    # Landroid/os/IBinder;
+    .param p3, "hardwareAuthToken"    # [B
+    .param p4, "userId"    # I
+    .param p5, "receiver"    # Landroid/hardware/face/IFaceServiceReceiver;
+    .param p6, "opPackageName"    # Ljava/lang/String;
+    .param p7, "disabledFeatures"    # [I
+    .param p8, "previewSurface"    # Landroid/view/Surface;
+    .param p9, "debugConsent"    # Z
+    .param p10, "options"    # Landroid/hardware/face/FaceEnrollOptions;
+
+    invoke-static {}, Lax/nd/faceunlock/FaceAuthBridge;->getInstance()Lax/nd/faceunlock/FaceAuthBridge;
+
+    move-result-object v0
+
+    invoke-virtual {v0, p4, p5, p8}, Lax/nd/faceunlock/FaceAuthBridge;->startEnroll(ILjava/lang/Object;Landroid/view/Surface;)V
+
+    const-wide/16 v0, 0x1
+
+    return-wide v0
+.end method
+
+.method public scheduleGenerateChallenge(IILandroid/os/IBinder;Landroid/hardware/face/IFaceServiceReceiver;Ljava/lang/String;)V
+    .locals 8
+    .param p1, "sensorId"    # I
+    .param p2, "userId"    # I
+    .param p3, "token"    # Landroid/os/IBinder;
+    .param p4, "receiver"    # Landroid/hardware/face/IFaceServiceReceiver;
+    .param p5, "opPackageName"    # Ljava/lang/String;
+
+    invoke-static {}, Lax/nd/faceunlock/FaceAuthBridge;->getInstance()Lax/nd/faceunlock/FaceAuthBridge;
+
+    move-result-object v0
+
+    if-eqz v0, :cond_0
+
+    invoke-virtual {v0, p1, p2, p4}, Lax/nd/faceunlock/FaceAuthBridge;->generateChallenge(IILjava/lang/Object;)V
+
+    :cond_0
+    return-void
+.end method
+
+.method public scheduleRemove(ILandroid/os/IBinder;IILandroid/hardware/face/IFaceServiceReceiver;Ljava/lang/String;)V
+    .locals 7
+    .param p1, "sensorId"    # I
+    .param p2, "token"    # Landroid/os/IBinder;
+    .param p3, "faceId"    # I
+    .param p4, "userId"    # I
+    .param p5, "receiver"    # Landroid/hardware/face/IFaceServiceReceiver;
+    .param p6, "opPackageName"    # Ljava/lang/String;
+
+    invoke-static {}, Lax/nd/faceunlock/FaceAuthBridge;->getInstance()Lax/nd/faceunlock/FaceAuthBridge;
+
+    move-result-object v0
+
+    if-eqz v0, :cond_0
+
+    invoke-virtual {v0, p4, p3, p5}, Lax/nd/faceunlock/FaceAuthBridge;->remove(IILjava/lang/Object;)V
+
+    :cond_0
+    return-void
+.end method
+
+.method public scheduleRevokeChallenge(IILandroid/os/IBinder;Ljava/lang/String;J)V
+    .locals 9
+    .param p1, "sensorId"    # I
+    .param p2, "userId"    # I
+    .param p3, "token"    # Landroid/os/IBinder;
+    .param p4, "opPackageName"    # Ljava/lang/String;
+    .param p5, "challenge"    # J
+
+    invoke-static {}, Lax/nd/faceunlock/FaceAuthBridge;->getInstance()Lax/nd/faceunlock/FaceAuthBridge;
+
+    move-result-object v0
+
+    if-eqz v0, :cond_0
+
+    const/4 v2, 0x0
+
+    invoke-virtual {v0, p1, p2, v2}, Lax/nd/faceunlock/FaceAuthBridge;->revokeChallenge(IILjava/lang/Object;)V
+
+    :cond_0
+    return-void
+.end method
+
+.method public getTestHalEnabled()Z
+    .locals 1
+
+    const/4 p0, 0x1
+
+    return p0
+.end method
+
+.method hasHalInstance()Z
+    .locals 3
+
+    const/4 v0, 0x1
+
+    return v0
+.end method
+
 .method public isHardwareDetected(I)Z
-    .registers 4
-    .param p1, "sensorId"  # I
+    .locals 2
+    .param p1, "sensorId"    # I
 
     const/4 v0, 0x1
 
@@ -93,111 +345,279 @@ isHwDetected='
 .end method
 '
 
-schedAuth='
-.method public scheduleAuthenticate(Landroid/os/IBinder;JILcom/android/server/biometrics/sensors/ClientMonitorCallbackConverter;Landroid/hardware/face/FaceAuthenticateOptions;ZIZ)J
-    .registers 20
-    .param p1, "token"  # Landroid/os/IBinder;
-    .param p2, "operationId"  # J
-    .param p4, "cookie"  # I
-    .param p5, "callback"  # Lcom/android/server/biometrics/sensors/ClientMonitorCallbackConverter;
-    .param p6, "options"  # Landroid/hardware/face/FaceAuthenticateOptions;
-    .param p7, "restricted"  # Z
-    .param p8, "statsClient"  # I
-    .param p9, "allowBackgroundAuthentication"  # Z
-    
-    invoke-static {}, Lax/nd/faceunlock/FaceAuthBridge;->getInstance()Lax/nd/faceunlock/FaceAuthBridge;
-    move-result-object v0
-    if-eqz v0, :cond_18
-    invoke-virtual/range {p6 .. p6}, Landroid/hardware/face/FaceAuthenticateOptions;->getUserId()I
-    move-result v1
-    invoke-virtual/range {p6 .. p6}, Landroid/hardware/face/FaceAuthenticateOptions;->getSensorId()I
-    move-result v2
-    invoke-virtual {v0, v2, v1, p5}, Lax/nd/faceunlock/FaceAuthBridge;->startAuthenticate(IILjava/lang/Object;)V
-    :cond_18
-    const-wide/16 v0, 0x1
-    return-wide v0
-.end method
-'
+faceServiceChanges='
+.method public static getDeclaredInstances()[Ljava/lang/String;
+    .locals 4
 
-schedEnroll='
-.method public scheduleEnroll(ILandroid/os/IBinder;[BILandroid/hardware/face/IFaceServiceReceiver;Ljava/lang/String;[ILandroid/view/Surface;ZLandroid/hardware/face/FaceEnrollOptions;)J
-    .registers 15
-    .param p1, "sensorId"  # I
-    .param p2, "token"  # Landroid/os/IBinder;
-    .param p3, "hat"  # [B
-    .param p4, "userId"  # I
-    .param p5, "receiver"  # Landroid/hardware/face/IFaceServiceReceiver;
-    .param p6, "opPackageName"  # Ljava/lang/String;
-    .param p7, "disabledFeatures"  # [I
-    .param p8, "previewSurface"  # Landroid/view/Surface;
-    .param p9, "debugConsent"  # Z
-    .param p10, "options"  # Landroid/hardware/face/FaceEnrollOptions;
-   
-    invoke-static {}, Lax/nd/faceunlock/FaceAuthBridge;->getInstance()Lax/nd/faceunlock/FaceAuthBridge;
-    move-result-object v0
-    invoke-virtual {v0, p4, p5, p8}, Lax/nd/faceunlock/FaceAuthBridge;->startEnroll(ILjava/lang/Object;Landroid/view/Surface;)V
-    const-wide/16 v0, 0x1
-    return-wide v0
-.end method
-'
+    const/4 v0, 0x1
 
-schedGenClg='
-.method public scheduleGenerateChallenge(IILandroid/os/IBinder;Landroid/hardware/face/IFaceServiceReceiver;Ljava/lang/String;)V
-    .registers 9
-    .param p1, "sensorId"  # I
-    .param p2, "userId"  # I
-    .param p3, "token"  # Landroid/os/IBinder;
-    .param p4, "receiver"  # Landroid/hardware/face/IFaceServiceReceiver;
-    .param p5, "opPackageName"  # Ljava/lang/String;
+    new-array v0, v0, [Ljava/lang/String;
 
-    invoke-static {}, Lax/nd/faceunlock/FaceAuthBridge;->getInstance()Lax/nd/faceunlock/FaceAuthBridge;
-    move-result-object v0
-    if-eqz v0, :cond_10
-    invoke-virtual {v0, p1, p2, p4}, Lax/nd/faceunlock/FaceAuthBridge;->generateChallenge(IILjava/lang/Object;)V
-    :cond_10
-    return-void
-.end method
-'
+    const-string v1, "default"
 
-schedRM='
-.method public scheduleRemove(ILandroid/os/IBinder;IILandroid/hardware/face/IFaceServiceReceiver;Ljava/lang/String;)V
-    .registers 10
-    .param p1, "sensorId"  # I
-    .param p2, "token"  # Landroid/os/IBinder;
-    .param p3, "faceId"  # I
-    .param p4, "userId"  # I
-    .param p5, "receiver"  # Landroid/hardware/face/IFaceServiceReceiver;
-    .param p6, "opPackageName"  # Ljava/lang/String;
-
-    invoke-static {}, Lax/nd/faceunlock/FaceAuthBridge;->getInstance()Lax/nd/faceunlock/FaceAuthBridge;
-    move-result-object v0
-    if-eqz v0, :cond_10
-    invoke-virtual {v0, p4, p3, p5}, Lax/nd/faceunlock/FaceAuthBridge;->remove(IILjava/lang/Object;)V
-    :cond_10
-    return-void
-.end method
-'
-
-schedRevClg='
-.method public scheduleRevokeChallenge(IILandroid/os/IBinder;Ljava/lang/String;J)V
-    .registers 10
-    .param p1, "sensorId"  # I
-    .param p2, "userId"  # I
-    .param p3, "token"  # Landroid/os/IBinder;
-    .param p4, "opPackageName"  # Ljava/lang/String;
-    .param p5, "challenge"  # J
-
-    invoke-static {}, Lax/nd/faceunlock/FaceAuthBridge;->getInstance()Lax/nd/faceunlock/FaceAuthBridge;
-    move-result-object v0
-    if-eqz v0, :cond_11
     const/4 v2, 0x0
-    invoke-virtual {v0, p1, p2, v2}, Lax/nd/faceunlock/FaceAuthBridge;->revokeChallenge(IILjava/lang/Object;)V
-    :cond_11
-    return-void
+
+    aput-object v1, v0, v2
+
+    return-object v0
+.end method
+
+.method private synthetic lambda$new$2(Ljava/lang/String;)Lcom/android/server/biometrics/sensors/face/aidl/FaceProvider;
+    .locals 14
+    .param p1, "name"    # Ljava/lang/String;
+
+    .line 861
+    new-instance v0, Ljava/lang/StringBuilder;
+
+    invoke-direct {v0}, Ljava/lang/StringBuilder;-><init>()V
+
+    sget-object v1, Landroid/hardware/biometrics/face/IFace;->DESCRIPTOR:Ljava/lang/String;
+
+    invoke-virtual {v0, v1}, Ljava/lang/StringBuilder;->append(Ljava/lang/String;)Ljava/lang/StringBuilder;
+
+    move-result-object v0
+
+    const-string v1, "/"
+
+    invoke-virtual {v0, v1}, Ljava/lang/StringBuilder;->append(Ljava/lang/String;)Ljava/lang/StringBuilder;
+
+    move-result-object v0
+
+    invoke-virtual {v0, p1}, Ljava/lang/StringBuilder;->append(Ljava/lang/String;)Ljava/lang/StringBuilder;
+
+    move-result-object v0
+
+    invoke-virtual {v0}, Ljava/lang/StringBuilder;->toString()Ljava/lang/String;
+
+    move-result-object v1
+
+    .line 862
+    .local v1, "fqName":Ljava/lang/String;
+    invoke-static {v1}, Landroid/hardware/face/FaceSensorConfigurations;->getIFace(Ljava/lang/String;)Landroid/hardware/biometrics/face/IFace;
+
+    move-result-object v2
+
+    .line 863
+    .local v2, "face":Landroid/hardware/biometrics/face/IFace;
+    const/4 v3, 0x0
+
+    const-string v4, "FaceService"
+
+    if-nez v2, :cond_0
+
+    .line 864
+    new-instance v0, Ljava/lang/StringBuilder;
+
+    invoke-direct {v0}, Ljava/lang/StringBuilder;-><init>()V
+
+    const-string v5, "Unable to get declared service: "
+
+    invoke-virtual {v0, v5}, Ljava/lang/StringBuilder;->append(Ljava/lang/String;)Ljava/lang/StringBuilder;
+
+    move-result-object v0
+
+    invoke-virtual {v0, v1}, Ljava/lang/StringBuilder;->append(Ljava/lang/String;)Ljava/lang/StringBuilder;
+
+    move-result-object v0
+
+    invoke-virtual {v0}, Ljava/lang/StringBuilder;->toString()Ljava/lang/String;
+
+    move-result-object v0
+
+    invoke-static {v4, v0}, Landroid/util/Slog;->e(Ljava/lang/String;Ljava/lang/String;)I
+
+    ### add start ###
+
+    new-instance v13, Landroid/hardware/biometrics/face/SensorProps;
+
+    invoke-direct {v13}, Landroid/hardware/biometrics/face/SensorProps;-><init>()V
+
+    new-instance v0, Landroid/hardware/biometrics/common/CommonProps;
+
+    invoke-direct {v0}, Landroid/hardware/biometrics/common/CommonProps;-><init>()V
+
+    const/4 v11, 0x1
+
+    iput v11, v0, Landroid/hardware/biometrics/common/CommonProps;->sensorId:I
+
+    iput-object v0, v13, Landroid/hardware/biometrics/face/SensorProps;->commonProps:Landroid/hardware/biometrics/common/CommonProps;
+
+    const/4 v11, 0x1
+
+    new-array v0, v11, [I
+
+    const/4 v12, 0x0
+
+    const/4 v10, 0x1
+
+    aput v10, v0, v12
+
+    iput-object v0, v13, Landroid/hardware/biometrics/face/SensorProps;->authenticatorIds:[I
+
+    const/4 v10, 0x1
+
+    new-array v9, v10, [Landroid/hardware/biometrics/face/SensorProps;
+
+    const/4 v10, 0x0
+
+    aput-object v13, v9, v10
+
+    goto :goto_0
+
+    ### add end ###
+
+    .line 868
+    :cond_0
+    :try_start_0
+    invoke-interface {v2}, Landroid/hardware/biometrics/face/IFace;->getSensorProps()[Landroid/hardware/biometrics/face/SensorProps;
+
+    move-result-object v0
+
+    move-object v9, v0
+
+    .line 869
+    .local v9, "props":[Landroid/hardware/biometrics/face/SensorProps;
+    :goto_0 ### add ###
+    new-instance v5, Lcom/android/server/biometrics/sensors/face/aidl/FaceProvider;
+
+    invoke-virtual {p0}, Lcom/android/server/biometrics/sensors/face/FaceService;->getContext()Landroid/content/Context;
+
+    move-result-object v6
+
+    iget-object v7, p0, Lcom/android/server/biometrics/sensors/face/FaceService;->mBiometricStateCallback:Lcom/android/server/biometrics/sensors/BiometricStateCallback;
+
+    iget-object v8, p0, Lcom/android/server/biometrics/sensors/face/FaceService;->mAuthenticationStateListeners:Lcom/android/server/biometrics/sensors/AuthenticationStateListeners;
+
+    iget-object v11, p0, Lcom/android/server/biometrics/sensors/face/FaceService;->mLockoutResetDispatcher:Lcom/android/server/biometrics/sensors/LockoutResetDispatcher;
+
+    .line 871
+    invoke-virtual {p0}, Lcom/android/server/biometrics/sensors/face/FaceService;->getContext()Landroid/content/Context;
+
+    move-result-object v0
+
+    invoke-static {v0}, Lcom/android/server/biometrics/log/BiometricContext;->getInstance(Landroid/content/Context;)Lcom/android/server/biometrics/log/BiometricContext;
+
+    move-result-object v12
+    :try_end_0
+    .catch Landroid/os/RemoteException; {:try_start_0 .. :try_end_0} :catch_1
+
+    const/4 v13, 0x0
+
+    move-object v10, p1
+
+    .end local p1    # "name":Ljava/lang/String;
+    .local v10, "name":Ljava/lang/String;
+    :try_start_1
+    invoke-direct/range {v5 .. v13}, Lcom/android/server/biometrics/sensors/face/aidl/FaceProvider;-><init>(Landroid/content/Context;Lcom/android/server/biometrics/sensors/BiometricStateCallback;Lcom/android/server/biometrics/sensors/AuthenticationStateListeners;[Landroid/hardware/biometrics/face/SensorProps;Ljava/lang/String;Lcom/android/server/biometrics/sensors/LockoutResetDispatcher;Lcom/android/server/biometrics/log/BiometricContext;Z)V
+    :try_end_1
+    .catch Landroid/os/RemoteException; {:try_start_1 .. :try_end_1} :catch_0
+
+    .line 869
+    return-object v5
+
+    .line 873
+    .end local v9    # "props":[Landroid/hardware/biometrics/face/SensorProps;
+    :catch_0
+    move-exception v0
+
+    move-object p1, v0
+
+    goto :goto_1 ### goto_0 -> goto_1
+
+    .end local v10    # "name":Ljava/lang/String;
+    .restart local p1    # "name":Ljava/lang/String;
+    :catch_1
+    move-exception v0
+
+    move-object v10, p1
+
+    move-object p1, v0
+
+    .line 874
+    .restart local v10    # "name":Ljava/lang/String;
+    .local p1, "e":Landroid/os/RemoteException;
+    :goto_1 ### goto_0 -> goto_1
+    new-instance v0, Ljava/lang/StringBuilder;
+
+    invoke-direct {v0}, Ljava/lang/StringBuilder;-><init>()V
+
+    const-string v5, "Remote exception in getSensorProps: "
+
+    invoke-virtual {v0, v5}, Ljava/lang/StringBuilder;->append(Ljava/lang/String;)Ljava/lang/StringBuilder;
+
+    move-result-object v0
+
+    invoke-virtual {v0, v1}, Ljava/lang/StringBuilder;->append(Ljava/lang/String;)Ljava/lang/StringBuilder;
+
+    move-result-object v0
+
+    invoke-virtual {v0}, Ljava/lang/StringBuilder;->toString()Ljava/lang/String;
+
+    move-result-object v0
+
+    invoke-static {v4, v0}, Landroid/util/Slog;->e(Ljava/lang/String;Ljava/lang/String;)I
+
+    .line 877
+    .end local p1    # "e":Landroid/os/RemoteException;
+    return-object v3
 .end method
 '
 
-faceEnrollState='
+testHalChanges='
+.method public getSensorProps()[Landroid/hardware/biometrics/face/SensorProperties;
+    .locals 6
+
+    const-string v0, "face.aidl.TestHal"
+
+    const/4 v0, 0x1
+
+    new-array v0, v0, [Landroid/hardware/biometrics/face/SensorProperties;
+
+    new-instance v1, Landroid/hardware/biometrics/face/SensorProperties;
+
+    invoke-direct {v1}, Landroid/hardware/biometrics/face/SensorProperties;-><init>()V
+
+    const/4 v2, 0x1
+
+    iput v2, v1, Landroid/hardware/biometrics/face/SensorProperties;->sensorId:I
+
+    const/4 v2, 0x3
+
+    iput v2, v1, Landroid/hardware/biometrics/face/SensorProperties;->strength:I
+
+    const/4 v2, 0x3
+
+    iput v2, v1, Landroid/hardware/biometrics/face/SensorProperties;->maxEnrollmentsPerUser:I
+
+    const/4 v2, 0x1
+
+    new-array v2, v2, [I
+
+    const/4 v3, 0x0
+
+    const/4 v4, 0x1
+
+    aput v4, v2, v3
+
+    iput-object v2, v1, Landroid/hardware/biometrics/face/SensorProperties;->authenticatorIds:[I
+
+    const/4 v2, 0x1
+
+    iput-boolean v2, v1, Landroid/hardware/biometrics/face/SensorProperties;->hardwareAuthTokenSupport:Z
+
+    const/4 v2, 0x0
+
+    iput-boolean v2, v1, Landroid/hardware/biometrics/face/SensorProperties;->dynamicTraitsSupported:Z
+
+    const/4 v2, 0x0
+
+    aput-object v1, v0, v2
+
+    return-object v0
+.end method
+'
+
+sysui_faceEnrollState='
 .method public isFaceAuthEnrolled(I)Z
     .registers 4
 
