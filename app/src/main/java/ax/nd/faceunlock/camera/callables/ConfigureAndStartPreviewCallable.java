@@ -42,10 +42,18 @@ public class ConfigureAndStartPreviewCallable extends CameraCallable {
                 Camera.Parameters params = camera.getParameters();
                 Camera.Size bestSize = findBestSize(params);
                 if (bestSize != null) {
-                    Log.d(TAG, "Setting Preview Size: " + bestSize.width + "x" + bestSize.height);
+                    Log.d(TAG, "Setting Preview Size (Native): " + bestSize.width + "x" + bestSize.height);
                     params.setPreviewSize(bestSize.width, bestSize.height);
-                    camera.setParameters(params);
                 }
+
+                if (params.isZoomSupported()) {
+                    int maxZoom = params.getMaxZoom();
+                    int targetZoom = maxZoom / 10;
+                    params.setZoom(targetZoom);
+                    Log.i(TAG, "Applying Crop-Zoom: " + targetZoom + "/" + maxZoom);
+                }
+
+                camera.setParameters(params);
                 getCameraData().mParameters = camera.getParameters();
             } catch (Exception e) {
                 Log.e(TAG, "Failed to configure parameters", e);
@@ -87,16 +95,6 @@ public class ConfigureAndStartPreviewCallable extends CameraCallable {
                 return (b.width * b.height) - (a.width * a.height);
             }
         });
-
-        for (Camera.Size s : sizes) {
-            if (s.width == s.height && s.width >= 480) {
-                return s;
-            }
-        }
-
-        for (Camera.Size s : sizes) {
-            if (s.width == 640 && s.height == 480) return s;
-        }
 
         return sizes.get(0);
     }
