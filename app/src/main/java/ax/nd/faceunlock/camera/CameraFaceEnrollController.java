@@ -20,14 +20,11 @@ public class CameraFaceEnrollController {
     private Handler mEnrollHandler;
     private volatile CameraCallback mCallback;
     private volatile boolean mIsEnrolling = false;
-
     private int mSrcWidth = 0;
     private int mSrcHeight = 0;
-
-    private int mTargetWidth = 640;
-    private int mTargetHeight = 480;
-    private boolean mUseDownscale = false;
-    
+    private final int mTargetWidth = 640;
+    private final int mTargetHeight = 480;
+    private int mScaleFactor = 1;
     private byte[] mProcessedBuffer;
 
     public interface CameraCallback {
@@ -54,48 +51,29 @@ public class CameraFaceEnrollController {
     }
 
     public void start(CameraCallback callback, int cameraId, Surface previewSurface) {
-        Log.d(TAG, "start() called with cameraId: " + cameraId);
         if (mIsEnrolling) stop(null);
         mIsEnrolling = true;
         mCallback = callback;
-        
-        mSrcWidth = 0; 
-        mSrcHeight = 0;
+        mSrcWidth = 0;
 
         mEnrollHandlerThread = new HandlerThread("face_enroll_thread");
         mEnrollHandlerThread.start();
         mEnrollHandler = new Handler(mEnrollHandlerThread.getLooper());
 
         CameraService.openCamera(cameraId, new ErrorCallbackListener() {
-            @Override
-            public void onEventCallback(int i, Object value) {
-                Log.e(TAG, "Camera open error: " + i);
+            @Override public void onEventCallback(int i, Object value) {
                 if (mCallback != null) mCallback.onCameraError();
             }
         }, new CameraListener() {
-            @Override
-            public void onComplete(Object value) {
-                startConfiguredPreview(previewSurface);
-            }
-            @Override
-            public void onError(Exception e) {
-                if (mCallback != null) mCallback.onCameraError();
-            }
+            @Override public void onComplete(Object value) { startConfiguredPreview(previewSurface); }
+            @Override public void onError(Exception e) { if (mCallback != null) mCallback.onCameraError(); }
         });
     }
 
     private void startConfiguredPreview(Surface surface) {
         CameraService.configureAndStartPreview(surface, new CameraListener() {
-            @Override
-            public void onComplete(Object value) {
-                Log.d(TAG, "Preview Started. Attaching Callback...");
-                attachPreviewCallback();
-            }
-
-            @Override
-            public void onError(Exception e) {
-                if (mCallback != null) mCallback.onCameraError();
-            }
+            @Override public void onComplete(Object value) { attachPreviewCallback(); }
+            @Override public void onError(Exception e) { if (mCallback != null) mCallback.onCameraError(); }
         });
     }
 
@@ -107,28 +85,31 @@ public class CameraFaceEnrollController {
             if (obj instanceof byte[]) {
                 final byte[] srcData = (byte[]) obj;
 
-                if (mSrcWidth == 0) {
-                     detectSourceResolution(srcData.length);
-                }
-                
+                if (mSrcWidth == 0) detectSourceResolution(srcData.length);
                 if (mSrcWidth == 0) return;
 
                 if (mEnrollHandler != null) {
                     mEnrollHandler.post(() -> {
                         try {
-                            byte[] destBuffer = mProcessedBuffer;
-                            
-                            if (callback == null || mSrcWidth == 0 || destBuffer == null) return;
-                            
-                            if (mUseDownscale) {
-                                downscaleNV21(srcData, mSrcWidth, mSrcHeight, destBuffer, mTargetWidth, mTargetHeight);
-                            } else {
-                                cropNV21(srcData, mSrcWidth, mSrcHeight, destBuffer, mTargetWidth, mTargetHeight);
+                            if (callback == null || mSrcWidth == 0) return;
+
+                            if (mProcessedBuffer == null) {
+                                mProcessedBuffer = new byte[mTargetWidth * mTargetHeight * 3 / 2];
                             }
-                            
-                            int res = callback.handleSaveFeature(destBuffer, mTargetWidth, mTargetHeight, 90);
+
+                            if (mScaleFactor == 4) {
+                                downscale4xNV21(srcData, mSrcWidth, mSrcHeight, mProcessedBuffer, mTargetWidth, mTargetHeight);
+                            } else if (mScaleFactor == 3) {
+                                downscale3xNV21(srcData, mSrcWidth, mSrcHeight, mProcessedBuffer, mTargetWidth, mTargetHeight);
+                            } else if (mScaleFactor == 2) {
+                                downscale2xNV21(srcData, mSrcWidth, mSrcHeight, mProcessedBuffer, mTargetWidth, mTargetHeight);
+                            } else {
+                                cropNV21(srcData, mSrcWidth, mSrcHeight, mProcessedBuffer, mTargetWidth, mTargetHeight);
+                            }
+
+                            int res = callback.handleSaveFeature(mProcessedBuffer, mTargetWidth, mTargetHeight, 90);
                             callback.handleSaveFeatureResult(res);
-                            
+
                         } catch (Exception e) {
                             Log.e(TAG, "Enroll processing error", e);
                         }
@@ -140,51 +121,134 @@ public class CameraFaceEnrollController {
 
     private void detectSourceResolution(int dataLength) {
         int pixels = (int)(dataLength / 1.5);
-        int sqrt = (int) Math.sqrt(pixels);
-        
-        if (sqrt * sqrt == pixels) {
-            mSrcWidth = sqrt;
-            mSrcHeight = sqrt;
-            
-            if (mSrcWidth >= 800) {
-                mUseDownscale = true;
-                mTargetWidth = mSrcWidth / 2;
-                mTargetHeight = mSrcHeight / 2;
-                Log.i(TAG, "High-Res Square (" + mSrcWidth + "x" + mSrcHeight + ") -> Downscaling to " + mTargetWidth + "x" + mTargetHeight);
-            } else {
-                mUseDownscale = false;
-                mTargetWidth = 640;
-                mTargetHeight = 480;
-                Log.i(TAG, "Standard Square (" + mSrcWidth + "x" + mSrcHeight + ") -> Cropping to " + mTargetWidth + "x" + mTargetHeight);
-            }
-        } 
-        else if (pixels == 307200) { mSrcWidth = 640; mSrcHeight = 480; mUseDownscale = false; } // VGA
-        else if (pixels == 921600) { mSrcWidth = 1280; mSrcHeight = 720; mUseDownscale = false; } // 720p
-        else if (pixels == 2073600) { mSrcWidth = 1920; mSrcHeight = 1080; mUseDownscale = false; } // 1080p
-        else {
-             Log.e(TAG, "Unknown buffer size: " + dataLength);
-             return;
+
+        if (Math.abs(pixels - 5028480) < 5000) {
+            mSrcWidth = 2592;
+            mSrcHeight = 1940;
+            mScaleFactor = 4;
+            Log.i(TAG, "Detected 5MP Input. Using 4x Downscale.");
         }
-        
-        mProcessedBuffer = new byte[mTargetWidth * mTargetHeight * 3 / 2];
+        else if (Math.abs(pixels - 3981312) < 5000) {
+            mSrcWidth = 2304;
+            mSrcHeight = 1728;
+            mScaleFactor = 3;
+            Log.i(TAG, "Detected 4MP Input. Using 3x Downscale.");
+        }
+        else if (pixels == 2073600 || pixels == 921600) {
+            mSrcWidth = (pixels == 2073600) ? 1920 : 1280;
+            mSrcHeight = (pixels == 2073600) ? 1080 : 720;
+            mScaleFactor = 2;
+            Log.i(TAG, "Detected HD Input. Using 2x Downscale.");
+        }
+        else {
+            int h = (int) Math.sqrt(pixels * 0.75);
+            int w = (int) (h * 1.3333333);
+            if (w % 2 != 0) w++;
+            if (h % 2 != 0) h++;
+            mSrcWidth = w;
+            mSrcHeight = h;
+
+            if (w >= 2300) mScaleFactor = 4;
+            else if (w >= 2000) mScaleFactor = 3;
+            else if (w >= 1200) mScaleFactor = 2;
+            else mScaleFactor = 1;
+
+            Log.i(TAG, "Detected " + mSrcWidth + "x" + mSrcHeight + ". Using ScaleFactor: " + mScaleFactor);
+        }
     }
 
-    private void downscaleNV21(byte[] src, int srcWidth, int srcHeight, byte[] dest, int dstWidth, int dstHeight) {
+    private void downscale4xNV21(byte[] src, int srcWidth, int srcHeight, byte[] dest, int dstWidth, int dstHeight) {
+        int scaledW = srcWidth / 4;
+        int scaledH = srcHeight / 4;
+        int xOffset = (scaledW - dstWidth) / 2;
+        int yOffset = (scaledH - dstHeight) / 2;
+        if (xOffset < 0) xOffset = 0;
+        if (yOffset < 0) yOffset = 0;
+
         for (int y = 0; y < dstHeight; y++) {
+            int srcY = (y + yOffset) * 4;
+            if (srcY >= srcHeight) break;
             for (int x = 0; x < dstWidth; x++) {
-                dest[y * dstWidth + x] = src[(y * 2) * srcWidth + (x * 2)];
+                int srcX = (x + xOffset) * 4;
+                dest[y * dstWidth + x] = src[srcY * srcWidth + srcX];
             }
         }
-        
         int uvSrcStart = srcWidth * srcHeight;
         int uvDstStart = dstWidth * dstHeight;
         for (int y = 0; y < dstHeight / 2; y++) {
+            int srcY = (y + yOffset / 2) * 4;
+            if (srcY >= srcHeight / 2) break;
             for (int x = 0; x < dstWidth; x += 2) {
-                int srcIndex = uvSrcStart + (y * 2) * srcWidth + x * 2;
+                int srcX = (x + xOffset / 2) * 4;
+                int srcIndex = uvSrcStart + srcY * srcWidth + srcX;
                 int dstIndex = uvDstStart + y * dstWidth + x;
-                
-                dest[dstIndex] = src[srcIndex];     // V
-                dest[dstIndex + 1] = src[srcIndex + 1]; // U
+                dest[dstIndex] = src[srcIndex];
+                dest[dstIndex + 1] = src[srcIndex + 1];
+            }
+        }
+    }
+
+    private void downscale3xNV21(byte[] src, int srcWidth, int srcHeight, byte[] dest, int dstWidth, int dstHeight) {
+        int scaledW = srcWidth / 3;
+        int scaledH = srcHeight / 3;
+        int xOffset = (scaledW - dstWidth) / 2;
+        int yOffset = (scaledH - dstHeight) / 2;
+        if (xOffset < 0) xOffset = 0;
+        if (yOffset < 0) yOffset = 0;
+
+        // Y Plane
+        for (int y = 0; y < dstHeight; y++) {
+            int srcY = (y + yOffset) * 3;
+            if (srcY >= srcHeight) break;
+            for (int x = 0; x < dstWidth; x++) {
+                int srcX = (x + xOffset) * 3;
+                dest[y * dstWidth + x] = src[srcY * srcWidth + srcX];
+            }
+        }
+
+        // UV Plane
+        int uvSrcStart = srcWidth * srcHeight;
+        int uvDstStart = dstWidth * dstHeight;
+        for (int y = 0; y < dstHeight / 2; y++) {
+            int srcY = (y + yOffset / 2) * 3;
+            if (srcY >= srcHeight / 2) break;
+            for (int x = 0; x < dstWidth; x += 2) {
+                int srcX = (x + xOffset / 2) * 3;
+                int srcIndex = uvSrcStart + srcY * srcWidth + srcX;
+                int dstIndex = uvDstStart + y * dstWidth + x;
+                dest[dstIndex] = src[srcIndex];
+                dest[dstIndex + 1] = src[srcIndex + 1];
+            }
+        }
+    }
+
+    private void downscale2xNV21(byte[] src, int srcWidth, int srcHeight, byte[] dest, int dstWidth, int dstHeight) {
+        int scaledW = srcWidth / 2;
+        int scaledH = srcHeight / 2;
+        int xOffset = (scaledW - dstWidth) / 2;
+        int yOffset = (scaledH - dstHeight) / 2;
+        if (xOffset < 0) xOffset = 0;
+        if (yOffset < 0) yOffset = 0;
+
+        for (int y = 0; y < dstHeight; y++) {
+            int srcY = (y + yOffset) * 2;
+            if (srcY >= srcHeight) break;
+            for (int x = 0; x < dstWidth; x++) {
+                int srcX = (x + xOffset) * 2;
+                dest[y * dstWidth + x] = src[srcY * srcWidth + srcX];
+            }
+        }
+        int uvSrcStart = srcWidth * srcHeight;
+        int uvDstStart = dstWidth * dstHeight;
+        for (int y = 0; y < dstHeight / 2; y++) {
+            int srcY = (y + yOffset / 2) * 2;
+            if (srcY >= srcHeight / 2) break;
+            for (int x = 0; x < dstWidth; x += 2) {
+                int srcX = (x + xOffset / 2) * 2;
+                int srcIndex = uvSrcStart + srcY * srcWidth + srcX;
+                int dstIndex = uvDstStart + y * dstWidth + x;
+                dest[dstIndex] = src[srcIndex];
+                dest[dstIndex + 1] = src[srcIndex + 1];
             }
         }
     }
@@ -202,7 +266,7 @@ public class CameraFaceEnrollController {
         int uvSrcStart = srcWidth * srcHeight;
         int uvDstStart = dstWidth * dstHeight;
         for (int i = 0; i < dstHeight / 2; i++) {
-             System.arraycopy(src, uvSrcStart + (yOffset / 2 + i) * srcWidth + xOffset, dest, uvDstStart + i * dstWidth, dstWidth);
+            System.arraycopy(src, uvSrcStart + (yOffset / 2 + i) * srcWidth + xOffset, dest, uvDstStart + i * dstWidth, dstWidth);
         }
     }
 
