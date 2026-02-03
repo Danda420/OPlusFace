@@ -8,6 +8,9 @@ import android.os.Looper;
 import android.util.Log;
 import android.view.Surface;
 
+import java.util.ArrayList;
+import java.util.List;
+
 import ax.nd.faceunlock.camera.listeners.CameraListener;
 import ax.nd.faceunlock.camera.listeners.ErrorCallbackListener;
 
@@ -26,6 +29,27 @@ public class CameraFaceEnrollController {
     private final int mTargetHeight = 480;
     private int mScaleFactor = 1;
     private byte[] mProcessedBuffer;
+
+    private static final List<ResolutionProfile> KNOWN_DEVICES = new ArrayList<>();
+
+    static {
+        KNOWN_DEVICES.add(new ResolutionProfile(2592, 1952, 4));
+        KNOWN_DEVICES.add(new ResolutionProfile(2592, 1940, 4));
+        KNOWN_DEVICES.add(new ResolutionProfile(2304, 1728, 3));
+        KNOWN_DEVICES.add(new ResolutionProfile(1920, 1080, 2));
+        KNOWN_DEVICES.add(new ResolutionProfile(1280,  720, 2));
+        KNOWN_DEVICES.add(new ResolutionProfile( 640,  480, 1));
+    }
+
+    private static class ResolutionProfile {
+        int width, height, scale;
+        long expectedBytes;
+
+        ResolutionProfile(int w, int h, int s) {
+            width = w; height = h; scale = s;
+            expectedBytes = (long)(w * h * 1.5);
+        }
+    }
 
     public interface CameraCallback {
         int handleSaveFeature(byte[] data, int width, int height, int angle);
@@ -120,41 +144,32 @@ public class CameraFaceEnrollController {
     }
 
     private void detectSourceResolution(int dataLength) {
+        for (ResolutionProfile profile : KNOWN_DEVICES) {
+            if (Math.abs(dataLength - profile.expectedBytes) < 2000) {
+                mSrcWidth = profile.width;
+                mSrcHeight = profile.height;
+                mScaleFactor = profile.scale;
+                Log.i(TAG, "Matched Profile: (" + mSrcWidth + "x" + mSrcHeight + ")");
+                return;
+            }
+        }
+
         int pixels = (int)(dataLength / 1.5);
+        int h = (int) Math.sqrt(pixels * 0.75);
+        int w = (int) (h * 1.3333333);
 
-        if (Math.abs(pixels - 5028480) < 5000) {
-            mSrcWidth = 2592;
-            mSrcHeight = 1940;
-            mScaleFactor = 4;
-            Log.i(TAG, "Detected 5MP Input. Using 4x Downscale.");
-        }
-        else if (Math.abs(pixels - 3981312) < 5000) {
-            mSrcWidth = 2304;
-            mSrcHeight = 1728;
-            mScaleFactor = 3;
-            Log.i(TAG, "Detected 4MP Input. Using 3x Downscale.");
-        }
-        else if (pixels == 2073600 || pixels == 921600) {
-            mSrcWidth = (pixels == 2073600) ? 1920 : 1280;
-            mSrcHeight = (pixels == 2073600) ? 1080 : 720;
-            mScaleFactor = 2;
-            Log.i(TAG, "Detected HD Input. Using 2x Downscale.");
-        }
-        else {
-            int h = (int) Math.sqrt(pixels * 0.75);
-            int w = (int) (h * 1.3333333);
-            if (w % 2 != 0) w++;
-            if (h % 2 != 0) h++;
-            mSrcWidth = w;
-            mSrcHeight = h;
+        if (w % 2 != 0) w++;
+        if (h % 2 != 0) h++;
 
-            if (w >= 2300) mScaleFactor = 4;
-            else if (w >= 2000) mScaleFactor = 3;
-            else if (w >= 1200) mScaleFactor = 2;
-            else mScaleFactor = 1;
+        mSrcWidth = w;
+        mSrcHeight = h;
 
-            Log.i(TAG, "Detected " + mSrcWidth + "x" + mSrcHeight + ". Using ScaleFactor: " + mScaleFactor);
-        }
+        if (w >= 2300) mScaleFactor = 4;
+        else if (w >= 2000) mScaleFactor = 3;
+        else if (w >= 1200) mScaleFactor = 2;
+        else mScaleFactor = 1;
+
+        Log.w(TAG, "Unknown Device Detected! Estimated dimension: " + mSrcWidth + "x" + mSrcHeight + " Scale: " + mScaleFactor);
     }
 
     private void downscale4xNV21(byte[] src, int srcWidth, int srcHeight, byte[] dest, int dstWidth, int dstHeight) {
